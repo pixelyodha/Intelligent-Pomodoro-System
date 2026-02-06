@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ZenFlow Pro - Tech Edition</title>
+    <style>
+        :root {
+            --accent: #00d2ff;
+            --bg: #05070a;
+            --card: rgba(255, 255, 255, 0.05);
+            --text: #e0e6ed;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: var(--bg);
+            background-image: radial-gradient(circle at top right, #1a1a2e, #05070a);
+            color: var(--text);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+            overflow: hidden;
+        }
+
+        /* Settings Sidebar */
+        .sidebar {
+            position: fixed;
+            right: -300px;
+            top: 0;
+            width: 250px;
+            height: 100%;
+            background: rgba(10, 10, 20, 0.95);
+            backdrop-filter: blur(15px);
+            border-left: 1px solid rgba(255,255,255,0.1);
+            padding: 30px;
+            transition: 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+            z-index: 100;
+            box-shadow: -10px 0 30px rgba(0,0,0,0.5);
+        }
+
+        .sidebar.open { right: 0; }
+
+        .settings-btn {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            background: var(--card);
+            border: 1px solid rgba(255,255,255,0.1);
+            color: white;
+            padding: 10px;
+            border-radius: 50%;
+            cursor: pointer;
+            font-size: 1.2rem;
+            z-index: 101;
+        }
+
+        .app-container {
+            background: var(--card);
+            backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 32px;
+            padding: 40px;
+            width: 380px;
+            text-align: center;
+            position: relative;
+        }
+
+        #timer {
+            font-size: 6rem;
+            font-weight: 200;
+            margin: 20px 0;
+            letter-spacing: -2px;
+        }
+
+        .input-group { margin-bottom: 20px; }
+        input[type="text"], input[type="number"] {
+            background: rgba(255,255,255,0.05);
+            border: 1px solid rgba(255,255,255,0.1);
+            padding: 12px;
+            border-radius: 12px;
+            color: white;
+            outline: none;
+            width: 100%;
+            box-sizing: border-box;
+        }
+
+        .btn-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; margin-bottom: 20px; }
+        
+        button {
+            background: rgba(255,255,255,0.05);
+            border: none;
+            color: #888;
+            padding: 10px;
+            border-radius: 10px;
+            cursor: pointer;
+            transition: 0.3s;
+        }
+
+        button.active { background: var(--accent); color: #000; font-weight: bold; }
+
+        .main-btn {
+            background: white;
+            color: black;
+            width: 100%;
+            padding: 18px;
+            border-radius: 16px;
+            font-weight: 700;
+            cursor: pointer;
+        }
+
+        .sidebar h3 { font-size: 1rem; color: var(--accent); margin-top: 0; }
+        .sidebar label { font-size: 0.8rem; display: block; margin: 15px 0 5px; color: #aaa; }
+    </style>
+</head>
+<body>
+
+<button class="settings-btn" onclick="toggleSidebar()">⚙️</button>
+
+<div class="sidebar" id="sidebar">
+    <h3>Adjust Timer</h3>
+    <label>Custom Focus (Mins)</label>
+    <input type="number" id="customMins" value="25" onchange="applyCustomTime()">
+    
+    <label>Music Volume</label>
+    <input type="range" min="0" max="1" step="0.1" value="0.5" onchange="adjustVolume(this.value)">
+    
+    <button style="margin-top: 30px; width: 100%;" onclick="toggleSidebar()">Close Settings</button>
+</div>
+
+<div class="app-container">
+    <span style="font-size: 0.7rem; letter-spacing: 2px; color: var(--accent);">PRO FOCUS TOOL</span>
+    
+    <div class="btn-grid" style="margin-top:20px;">
+        <button onclick="setMode(25, this)" class="active">25m</button>
+        <button onclick="setMode(45, this)">45m</button>
+        <button onclick="setMode(60, this)">60m</button>
+    </div>
+
+    <div class="input-group">
+        <input type="text" id="taskInput" placeholder="Enter session goal...">
+    </div>
+
+    <div id="timer">25:00</div>
+    
+    <button class="main-btn" onclick="toggleTimer()" id="startBtn">START SESSION</button>
+
+    <div style="margin-top: 25px; display: flex; gap: 10px; justify-content: center;">
+        <button onclick="playMusic('lofi')">🎵 Lo-Fi</button>
+        <button onclick="playMusic('rain')">🌧️ Rain</button>
+        <button onclick="stopMusic()">🔇 Stop</button>
+    </div>
+
+    <div style="display: flex; justify-content: space-between; margin-top: 30px; font-size: 0.7rem; color: #666;">
+        <span>STREAK: <b id="streak" style="color: var(--accent)">0</b></span>
+        <span>DISTRACTIONS: <b id="distractions">0</b></span>
+    </div>
+</div>
+
+<audio id="lofi" loop src="udit_paul-piano-loop-10809.mp3"></audio>
+<audio id="rain" loop src="liecio-calming-rain-257596.mp3"></audio>
+<audio id="white" loop src="dragon-studio-whitenoise-372485.mp3"></audio>
+
+<script>
+    let timeLeft = 1500;
+    let timerId = null;
+    let distractionCount = 0;
+    let currentAudio = null;
+
+    function toggleSidebar() {
+        document.getElementById('sidebar').classList.toggle('open');
+    }
+
+    function applyCustomTime() {
+        const val = document.getElementById('customMins').value;
+        if (val > 0) {
+            timeLeft = val * 60;
+            updateDisplay();
+        }
+    }
+
+    function setMode(mins, btn) {
+        if(timerId) return;
+        timeLeft = mins * 60;
+        document.getElementById('customMins').value = mins;
+        updateDisplay();
+        document.querySelectorAll('.btn-grid button').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+    }
+
+    function updateDisplay() {
+        const mins = Math.floor(timeLeft / 60);
+        const secs = timeLeft % 60;
+        document.getElementById('timer').innerText = `${mins}:${secs < 10 ? '0' : ''}${secs}`;
+    }
+
+    function toggleTimer() {
+        if (!timerId) {
+            if(!document.getElementById('taskInput').value) { alert("State your mission!"); return; }
+            timerId = setInterval(() => {
+                timeLeft--;
+                updateDisplay();
+                if (timeLeft <= 0) {
+                    clearInterval(timerId);
+                    document.getElementById('streak').innerText = parseInt(document.getElementById('streak').innerText) + 1;
+                    alert("Focus complete! 🌱");
+                }
+            }, 1000);
+            document.getElementById('startBtn').innerText = "PAUSE";
+        } else {
+            clearInterval(timerId);
+            timerId = null;
+            document.getElementById('startBtn').innerText = "RESUME";
+        }
+    }
+
+    function playMusic(id) {
+        if(currentAudio) currentAudio.pause();
+        currentAudio = document.getElementById(id);
+        currentAudio.play();
+    }
+
+    function stopMusic() {
+        if(currentAudio) currentAudio.pause();
+    }
+
+    function adjustVolume(val) {
+        if(currentAudio) currentAudio.volume = val;
+    }
+
+    document.addEventListener("visibilitychange", () => {
+        if (document.hidden && timerId) {
+            distractionCount++;
+            document.getElementById('distractions').innerText = distractionCount;
+        }
+    });
+</script>
+
+</body>
+</html>
